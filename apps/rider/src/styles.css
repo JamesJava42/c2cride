@@ -1,0 +1,164 @@
+/* ── Reset & base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; height: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f0f4f8; color: #1e293b; min-height: 100vh; height: 100%;
+  -webkit-font-smoothing: antialiased; overflow-x: hidden;
+}
+
+/* ── Layout shell ── */
+.page { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+
+/* ── Topbar ── */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+  background: #1a1a2e; color: #fff;
+  position: sticky; top: 0; z-index: 100;
+}
+.topbar .brand { font-weight: 800; font-size: 1.05rem; letter-spacing: -0.3px; }
+.topbar-actions { display: flex; gap: 0.5rem; align-items: center; }
+.topbar-actions a { color: #94a3b8; text-decoration: none; font-size: 0.85rem; padding: 0.3rem 0.5rem; }
+.topbar-actions button {
+  background: transparent; border: 1px solid #334155; color: #94a3b8;
+  padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.82rem;
+  width: auto; margin: 0; -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Bottom navigation (rider) ── */
+.bottom-nav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: #fff; border-top: 1px solid #e2e8f0;
+  display: flex; z-index: 100;
+  padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+}
+.bottom-nav a {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 0.2rem; padding: 0.6rem 0.25rem;
+  text-decoration: none; color: #94a3b8; font-size: 0.68rem; font-weight: 600;
+  letter-spacing: 0.3px; -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s;
+}
+.bottom-nav a .nav-icon { font-size: 1.3rem; line-height: 1; }
+.bottom-nav a.active-link, .bottom-nav a:hover { color: #3b82f6; }
+
+/* Pages with bottom nav need padding so content isn't hidden */
+.has-bottom-nav .content { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+
+/* ── Content area ── */
+.content { flex: 1; max-width: 640px; margin: 0 auto; padding: 1.25rem 1rem; width: 100%; }
+.content h1 { font-size: 1.35rem; margin-bottom: 1.25rem; font-weight: 800; color: #0f172a; }
+
+/* ── Auth pages ── */
+.auth-wrap {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; min-height: 100dvh; padding: 1.5rem 1rem;
+}
+
+/* ── Cards ── */
+.card {
+  background: #fff; border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06); padding: 1.25rem; margin-bottom: 1rem;
+  border: 1px solid #f1f5f9;
+}
+.card h2 { font-size: 1.25rem; margin-bottom: 1.25rem; font-weight: 700; }
+.card h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem; }
+
+/* ── Forms ── */
+input, select, textarea {
+  display: block; width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1.5px solid #e2e8f0; border-radius: 12px;
+  font-size: 1rem; /* 16px+ prevents iOS auto-zoom */
+  margin-bottom: 0.75rem; outline: none;
+  transition: border-color 0.15s; font-family: inherit;
+  background: #fff; color: #1e293b;
+  -webkit-appearance: none; appearance: none;
+}
+input:focus, select:focus, textarea:focus { border-color: #3b82f6; background: #fff; }
+label {
+  display: block; font-size: 0.78rem; font-weight: 700; color: #64748b;
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.35rem;
+}
+
+/* ── Buttons ── */
+button {
+  display: block; width: 100%;
+  padding: 0.85rem 1rem; min-height: 48px; /* 48px minimum touch target */
+  background: #3b82f6; color: #fff; border: none; border-radius: 12px;
+  font-size: 1rem; font-weight: 700; cursor: pointer; margin-top: 0.5rem;
+  transition: background 0.15s, opacity 0.15s;
+  -webkit-tap-highlight-color: transparent; font-family: inherit;
+  touch-action: manipulation;
+}
+button:active:not(:disabled) { opacity: 0.85; }
+button:hover:not(:disabled) { background: #2563eb; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.danger { background: #ef4444; }
+button.danger:hover:not(:disabled) { background: #dc2626; }
+button.secondary { background: #64748b; }
+button.ghost {
+  background: transparent; border: 1.5px solid #e2e8f0; color: #475569;
+  font-weight: 600;
+}
+button.ghost:hover:not(:disabled) { background: #f8fafc; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.75rem 1.25rem; min-height: 48px;
+  background: #3b82f6; color: #fff; border-radius: 12px;
+  text-decoration: none; font-weight: 700; font-size: 0.95rem;
+  margin-top: 0.5rem; margin-right: 0.5rem;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.btn.secondary { background: #64748b; }
+.btn.block { display: flex; width: 100%; }
+
+/* ── Status badges ── */
+.status-badge {
+  display: inline-block; padding: 0.3rem 0.8rem; border-radius: 20px;
+  font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+  background: #e2e8f0; color: #475569;
+}
+.status-badge.completed { background: #dcfce7; color: #16a34a; }
+.status-badge.trip_in_progress { background: #dbeafe; color: #1d4ed8; }
+.status-badge.driver_accepted,
+.status-badge.driver_enroute_pickup,
+.status-badge.driver_arrived { background: #fef9c3; color: #854d0e; }
+.status-badge.cancelled_by_rider,
+.status-badge.cancelled_by_driver,
+.status-badge.cancelled_by_admin,
+.status-badge.expired_unassigned { background: #fee2e2; color: #dc2626; }
+
+/* ── Typography & utilities ── */
+.error   { color: #dc2626; font-size: 0.88rem; margin-top: 0.5rem; }
+.success { color: #16a34a; font-size: 0.88rem; margin-top: 0.5rem; }
+.hint    { font-size: 0.85rem; color: #64748b; line-height: 1.5; }
+.link    { text-align: center; margin-top: 1rem; font-size: 0.9rem; color: #64748b; }
+.link a  { color: #3b82f6; text-decoration: none; font-weight: 700; }
+.empty   { color: #94a3b8; text-align: center; padding: 2rem 1rem; font-size: 0.95rem; }
+.fare    { font-weight: 700; color: #3b82f6; }
+.estimate { font-size: 1rem; margin: 0.5rem 0; font-weight: 600; }
+.ride-card { margin-bottom: 0.75rem; }
+.ride-row  { display: flex; justify-content: space-between; align-items: center; }
+.date      { font-size: 0.8rem; color: #94a3b8; }
+
+/* ── Spinner ── */
+.spinner {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 3px solid #e2e8f0; border-top-color: #3b82f6;
+  animation: spin 0.7s linear infinite; margin: 0 auto 0.75rem;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-state { text-align: center; padding: 3rem 1rem; color: #64748b; }
+.loading-state p { font-size: 0.95rem; }
+
+/* ── Mobile tweaks ── */
+@media (max-width: 420px) {
+  .content { padding: 1rem 0.85rem; }
+  .card { padding: 1rem; border-radius: 14px; }
+  .content h1 { font-size: 1.2rem; }
+}
