@@ -33,26 +33,41 @@ export class RidesService implements OnApplicationBootstrap {
   // ─── Startup: ensure schema additions exist ───────────────────────────────
 
   async onApplicationBootstrap() {
-    // Add 'scheduled' enum value if this DB hasn't been migrated yet
+    // Enable uuid extension (needed for uuid_generate_v4)
+    await this.dataSource.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
+
+    // Add 'scheduled' enum value — only if the type already exists (synchronize creates it)
     await this.dataSource.query(`
       DO $$
       BEGIN
-        IF NOT EXISTS (
-          SELECT 1 FROM pg_enum
-          WHERE enumlabel = 'scheduled'
-            AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'ride_status')
-        ) THEN
-          ALTER TYPE ride_status ADD VALUE 'scheduled' BEFORE 'requested';
+        IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ride_status') THEN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_enum
+            WHERE enumlabel = 'scheduled'
+              AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'ride_status')
+          ) THEN
+            ALTER TYPE ride_status ADD VALUE 'scheduled' BEFORE 'requested';
+          END IF;
         END IF;
       END $$;
     `);
 
-    // Add scheduled_at column if not present
+    // Add scheduled_at column if the table exists but column is missing
     await this.dataSource.query(`
-      ALTER TABLE ride_requests ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ride_requests') THEN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'ride_requests' AND column_name = 'scheduled_at'
+          ) THEN
+            ALTER TABLE ride_requests ADD COLUMN scheduled_at TIMESTAMPTZ;
+          END IF;
+        END IF;
+      END $$;
     `);
 
-    // ride_messages table + index (idempotent)
+    // ride_messages table + index (idempotent — safe on both fresh and existing DB)
     await this.dataSource.query(`
       CREATE TABLE IF NOT EXISTS ride_messages (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

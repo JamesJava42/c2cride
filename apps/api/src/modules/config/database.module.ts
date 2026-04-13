@@ -28,7 +28,7 @@ import { AdminAction } from '../../entities/admin-action.entity.js';
         database: cfg.get<string>('DATABASE_NAME', 'community_ride'),
         username: cfg.get<string>('DATABASE_USER', 'cr_user'),
         password: cfg.get<string>('DATABASE_PASSWORD', 'cr_dev_pass'),
-        synchronize: false,
+        synchronize: true,
         logging: cfg.get('NODE_ENV') === 'development',
         entities: [
           User,
