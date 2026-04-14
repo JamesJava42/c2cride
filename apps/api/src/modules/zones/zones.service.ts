@@ -40,13 +40,13 @@ export class ZonesService {
   async getActiveFareRule(zoneId: string | null): Promise<FareRule | null> {
     const query = this.fareRules
       .createQueryBuilder('fr')
-      .where('fr.effective_from <= NOW()');
+      .where('fr.effectiveFrom <= NOW()');
     if (zoneId) {
-      query.andWhere('(fr.zone_id = :zoneId OR fr.zone_id IS NULL)', { zoneId });
+      query.andWhere('(fr.zoneId = :zoneId OR fr.zoneId IS NULL)', { zoneId });
     } else {
-      query.andWhere('fr.zone_id IS NULL');
+      query.andWhere('fr.zoneId IS NULL');
     }
-    query.orderBy('fr.effective_from', 'DESC').limit(1);
+    query.orderBy('fr.effectiveFrom', 'DESC').limit(1);
     return query.getOne();
   }
 

@@ -10,8 +10,8 @@ export class DriverLocation {
   @JoinColumn({ name: 'driver_id' })
   driver: Driver;
 
-  // Stored as GEOGRAPHY(POINT,4326) — use raw SQL for spatial ops
-  @Column({ type: 'text', nullable: true })
+  // Stored as GEOGRAPHY(POINT,4326) — managed via raw SQL, not TypeORM sync
+  @Column({ type: 'text', nullable: true, select: false })
   coords: string | null;
 
   @Column({ type: 'numeric', nullable: true })

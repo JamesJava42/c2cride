@@ -33,8 +33,9 @@ export class RidesService implements OnApplicationBootstrap {
   // ─── Startup: ensure schema additions exist ───────────────────────────────
 
   async onApplicationBootstrap() {
-    // Enable uuid extension (needed for uuid_generate_v4)
+    // Enable required extensions
     await this.dataSource.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
+    await this.dataSource.query(`CREATE EXTENSION IF NOT EXISTS postgis`);
 
     // Add 'scheduled' enum value — only if the type already exists (synchronize creates it)
     await this.dataSource.query(`
@@ -67,6 +68,35 @@ export class RidesService implements OnApplicationBootstrap {
       END $$;
     `);
 
+    // Upgrade pickup_coords / drop_coords from text to geography if still text
+    await this.dataSource.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ride_requests' AND column_name = 'pickup_coords'
+            AND data_type = 'text'
+        ) THEN
+          ALTER TABLE ride_requests ALTER COLUMN pickup_coords TYPE geography(POINT,4326) USING NULL;
+          ALTER TABLE ride_requests ALTER COLUMN drop_coords TYPE geography(POINT,4326) USING NULL;
+        END IF;
+      END $$;
+    `);
+
+    // Ensure driver_locations uses geography (not text)
+    await this.dataSource.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'driver_locations' AND column_name = 'coords'
+            AND data_type = 'text'
+        ) THEN
+          ALTER TABLE driver_locations ALTER COLUMN coords TYPE geography(POINT,4326) USING NULL;
+        END IF;
+      END $$;
+    `);
+
     // ride_messages table + index (idempotent — safe on both fresh and existing DB)
     await this.dataSource.query(`
       CREATE TABLE IF NOT EXISTS ride_messages (
@@ -81,6 +111,13 @@ export class RidesService implements OnApplicationBootstrap {
     `);
     await this.dataSource.query(`
       CREATE INDEX IF NOT EXISTS idx_rm_ride ON ride_messages(ride_request_id, created_at)
+    `);
+
+    // Seed a default fare rule if none exist (so fare estimates work out of the box)
+    await this.dataSource.query(`
+      INSERT INTO fare_rules (base_fare, per_mile, per_minute, minimum_fare, pool_discount_pct, effective_from)
+      SELECT 2.50, 1.25, 0.20, 5.00, 10.00, NOW()
+      WHERE NOT EXISTS (SELECT 1 FROM fare_rules)
     `);
   }
 

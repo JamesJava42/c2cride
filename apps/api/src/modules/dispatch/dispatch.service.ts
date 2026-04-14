@@ -177,7 +177,7 @@ export class DispatchService {
     const query = this.drivers
       .createQueryBuilder('d')
       .innerJoin('driver_sessions', 'ds', 'ds.driver_id = d.id AND ds.ended_at IS NULL AND ds.is_online = true')
-      .where('d.approval_status = :status', { status: 'approved' });
+      .where('d.approvalStatus = :status', { status: 'approved' });
 
     if (excludeDriverIds.length > 0) {
       query.andWhere('d.id NOT IN (:...excluded)', { excluded: excludeDriverIds });
@@ -194,7 +194,7 @@ export class DispatchService {
       )
     `);
 
-    query.orderBy('d.reliability_score', 'DESC').limit(1);
+    query.orderBy('d.reliabilityScore', 'DESC').limit(1);
     return query.getOne();
   }
 }
