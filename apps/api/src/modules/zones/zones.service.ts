@@ -38,16 +38,32 @@ export class ZonesService {
   }
 
   async getActiveFareRule(zoneId: string | null): Promise<FareRule | null> {
-    const query = this.fareRules
-      .createQueryBuilder('fr')
-      .where('fr.effectiveFrom <= NOW()');
-    if (zoneId) {
-      query.andWhere('(fr.zoneId = :zoneId OR fr.zoneId IS NULL)', { zoneId });
-    } else {
-      query.andWhere('fr.zoneId IS NULL');
-    }
-    query.orderBy('fr.effectiveFrom', 'DESC').limit(1);
-    return query.getOne();
+    const rows = await this.fareRules.query(
+      zoneId
+        ? `SELECT * FROM fare_rules
+           WHERE effective_from <= NOW()
+             AND (zone_id = $1 OR zone_id IS NULL)
+           ORDER BY effective_from DESC LIMIT 1`
+        : `SELECT * FROM fare_rules
+           WHERE effective_from <= NOW()
+             AND zone_id IS NULL
+           ORDER BY effective_from DESC LIMIT 1`,
+      zoneId ? [zoneId] : [],
+    );
+    if (!rows.length) return null;
+    // Map snake_case columns back to entity properties
+    const r = rows[0];
+    return {
+      id: r.id,
+      zoneId: r.zone_id,
+      zone: null,
+      baseFare: r.base_fare,
+      perMile: r.per_mile,
+      perMinute: r.per_minute,
+      minimumFare: r.minimum_fare,
+      poolDiscountPct: r.pool_discount_pct,
+      effectiveFrom: r.effective_from,
+    } as FareRule;
   }
 
   async estimateFare(

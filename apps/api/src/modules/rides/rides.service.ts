@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
   ForbiddenException,
@@ -22,6 +23,8 @@ const TERMINAL: RideStatus[] = [
 
 @Injectable()
 export class RidesService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(RidesService.name);
+
   constructor(
     @InjectRepository(RideRequest) private readonly rideRequests: Repository<RideRequest>,
     @InjectRepository(RideEvent) private readonly rideEvents: Repository<RideEvent>,
@@ -33,12 +36,10 @@ export class RidesService implements OnApplicationBootstrap {
   // ─── Startup: ensure schema additions exist ───────────────────────────────
 
   async onApplicationBootstrap() {
-    // Enable required extensions
-    await this.dataSource.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
-    await this.dataSource.query(`CREATE EXTENSION IF NOT EXISTS postgis`);
+    await this.runSql('uuid-ossp extension', `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
+    await this.runSql('postgis extension', `CREATE EXTENSION IF NOT EXISTS postgis`);
 
-    // Add 'scheduled' enum value — only if the type already exists (synchronize creates it)
-    await this.dataSource.query(`
+    await this.runSql('ride_status enum guard', `
       DO $$
       BEGIN
         IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ride_status') THEN
@@ -53,8 +54,7 @@ export class RidesService implements OnApplicationBootstrap {
       END $$;
     `);
 
-    // Add scheduled_at column if the table exists but column is missing
-    await this.dataSource.query(`
+    await this.runSql('scheduled_at column', `
       DO $$
       BEGIN
         IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ride_requests') THEN
@@ -68,37 +68,30 @@ export class RidesService implements OnApplicationBootstrap {
       END $$;
     `);
 
-    // Upgrade pickup_coords / drop_coords from text to geography if still text
-    await this.dataSource.query(`
+    // Upgrade coordinate columns from text to geography if PostGIS is now available
+    await this.runSql('pickup_coords → geography', `
       DO $$
       BEGIN
-        IF EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'ride_requests' AND column_name = 'pickup_coords'
-            AND data_type = 'text'
-        ) THEN
-          ALTER TABLE ride_requests ALTER COLUMN pickup_coords TYPE geography(POINT,4326) USING NULL;
-          ALTER TABLE ride_requests ALTER COLUMN drop_coords TYPE geography(POINT,4326) USING NULL;
+        IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'postgis') THEN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'ride_requests' AND column_name = 'pickup_coords' AND data_type = 'text'
+          ) THEN
+            ALTER TABLE ride_requests
+              ALTER COLUMN pickup_coords TYPE geography(POINT,4326) USING NULL,
+              ALTER COLUMN drop_coords   TYPE geography(POINT,4326) USING NULL;
+          END IF;
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'driver_locations' AND column_name = 'coords' AND data_type = 'text'
+          ) THEN
+            ALTER TABLE driver_locations ALTER COLUMN coords TYPE geography(POINT,4326) USING NULL;
+          END IF;
         END IF;
       END $$;
     `);
 
-    // Ensure driver_locations uses geography (not text)
-    await this.dataSource.query(`
-      DO $$
-      BEGIN
-        IF EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'driver_locations' AND column_name = 'coords'
-            AND data_type = 'text'
-        ) THEN
-          ALTER TABLE driver_locations ALTER COLUMN coords TYPE geography(POINT,4326) USING NULL;
-        END IF;
-      END $$;
-    `);
-
-    // ride_messages table + index (idempotent — safe on both fresh and existing DB)
-    await this.dataSource.query(`
+    await this.runSql('ride_messages table', `
       CREATE TABLE IF NOT EXISTS ride_messages (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         ride_request_id UUID NOT NULL REFERENCES ride_requests(id) ON DELETE CASCADE,
@@ -109,16 +102,24 @@ export class RidesService implements OnApplicationBootstrap {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
-    await this.dataSource.query(`
+    await this.runSql('ride_messages index', `
       CREATE INDEX IF NOT EXISTS idx_rm_ride ON ride_messages(ride_request_id, created_at)
     `);
 
-    // Seed a default fare rule if none exist (so fare estimates work out of the box)
-    await this.dataSource.query(`
+    await this.runSql('default fare rule seed', `
       INSERT INTO fare_rules (base_fare, per_mile, per_minute, minimum_fare, pool_discount_pct, effective_from)
       SELECT 2.50, 1.25, 0.20, 5.00, 10.00, NOW()
       WHERE NOT EXISTS (SELECT 1 FROM fare_rules)
     `);
+  }
+
+  private async runSql(label: string, sql: string): Promise<void> {
+    try {
+      await this.dataSource.query(sql);
+      this.logger.log(`Bootstrap OK: ${label}`);
+    } catch (err: any) {
+      this.logger.warn(`Bootstrap SKIP (${label}): ${err?.message}`);
+    }
   }
 
   // ─── Rider: create ride (immediate OR scheduled) ──────────────────────────
@@ -161,13 +162,18 @@ export class RidesService implements OnApplicationBootstrap {
     await this.rideRequests.save(ride);
 
     if (dto.pickupLat != null && dto.pickupLng != null) {
-      await this.dataSource.query(
-        `UPDATE ride_requests
-           SET pickup_coords = ST_SetSRID(ST_MakePoint($1,$2),4326)::geography,
-               drop_coords   = ST_SetSRID(ST_MakePoint($3,$4),4326)::geography
-         WHERE id = $5`,
-        [dto.pickupLng, dto.pickupLat, dto.dropLng, dto.dropLat, ride.id],
-      );
+      try {
+        await this.dataSource.query(
+          `UPDATE ride_requests
+             SET pickup_coords = ST_SetSRID(ST_MakePoint($1,$2),4326)::geography,
+                 drop_coords   = ST_SetSRID(ST_MakePoint($3,$4),4326)::geography
+           WHERE id = $5`,
+          [dto.pickupLng, dto.pickupLat, dto.dropLng, dto.dropLat, ride.id],
+        );
+      } catch {
+        // PostGIS not available — coordinates saved as addresses only, ride still created
+        this.logger.warn(`Could not store coords for ride ${ride.id} (PostGIS unavailable)`);
+      }
     }
 
     await this.logEvent(
